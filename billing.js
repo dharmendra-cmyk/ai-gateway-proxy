@@ -2,7 +2,6 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 async function createCheckoutSession(req, res) {
     try {
-        // Build a dynamic payment checkout session linked to Stripe's secure cloud
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items: [
@@ -13,13 +12,12 @@ async function createCheckoutSession(req, res) {
                             name: 'AI Gateway Pro Plan Unlimited',
                             description: 'High-speed cached proxy token credentials matrix integration layer.',
                         },
-                        unit_amount: 2900, // $29.00 USD represented in cents
+                        unit_amount: 2900, // $29.00 USD
                     },
                     quantity: 1,
                 },
             ],
             mode: 'payment',
-            // Redirects users back to your dashboard seamlessly after processing
             success_url: `${req.get('origin')}/?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${req.get('origin')}/`,
         });
