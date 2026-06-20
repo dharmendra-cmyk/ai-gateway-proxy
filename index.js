@@ -1,24 +1,7 @@
-const express = require('express');
-const dotenv = require('dotenv');
-const path = require('path');
-
-// Load environment variables
-dotenv.config();
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// 1. Parse incoming JSON payloads
-app.use(express.json());
-
-// 2. CRUCIAL: Serve your static frontend files from the public folder
+// Ensure there are TWO underscores before dirname here:
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 3. Import and link your API router matrix
-const gatewayRouter = require('./router');
-app.use('/api', gatewayRouter);
-
-// Start the gateway engine
-app.listen(PORT, () => {
-    console.log(`Server is running beautifully on http://localhost:${PORT}`);
+// Ensure there are TWO underscores before dirname here too:
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

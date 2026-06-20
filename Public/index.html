@@ -3,228 +3,335 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Gateway Proxy Analytics</title>
+    <title>AI Gateway Proxy - Admin Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans antialiased">
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
 
-    <header class="border-b border-gray-800 bg-gray-950 px-8 py-4 flex items-center justify-between">
-        <div class="flex items-center space-x-3">
-            <div class="h-3 w-3 rounded-full bg-green-500 animate-ping"></div>
-            <h1 class="text-xl font-bold tracking-tight text-white">AI Gateway Proxy <span class="text-blue-500 font-medium text-sm border border-blue-500/30 px-2 py-0.5 rounded ml-2 bg-blue-500/10">v1.2 Multi-Tenant</span></h1>
+    <div id="auth-modal" class="fixed inset-0 bg-gray-950/95 flex items-center justify-center z-50">
+        <div class="bg-gray-800 border border-gray-700 p-8 rounded-2xl max-w-md w-full space-y-6 shadow-2xl">
+            <div class="text-center">
+                <h2 class="text-2xl font-bold tracking-tight text-white">Welcome to AI Gateway</h2>
+                <p class="text-sm text-gray-400 mt-2">Sign up or sign in to provision custom proxy keys</p>
+            </div>
+            <div class="space-y-4">
+                <input type="email" id="auth-email" placeholder="name@company.com" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-green-500 font-mono">
+                <input type="password" id="auth-password" placeholder="••••••••" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-green-500 font-mono">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="handleSignIn()" class="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 rounded-lg text-sm transition-colors">Sign In</button>
+                <button onclick="handleSignUp()" class="bg-green-600 hover:bg-green-500 text-white font-medium py-2.5 rounded-lg text-sm transition-colors shadow-lg shadow-green-900/20">Sign Up</button>
+            </div>
+            <p id="auth-error" class="text-xs text-red-400 text-center hidden font-mono"></p>
         </div>
-        <div class="text-sm text-gray-400">System Status: <span class="text-green-400 font-medium">Operational</span></div>
-    </header>
+    </div>
 
-    <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <nav class="border-b border-gray-800 bg-gray-900 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <h1 class="text-xl font-bold tracking-tight">AI Gateway Proxy <span class="text-xs text-gray-400 font-mono ml-2">v1.0.0</span></h1>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span class="text-sm text-gray-400 font-mono bg-gray-800 px-3 py-1 rounded" id="live-url">Loading link...</span>
+            <button onclick="handleSignOut()" class="text-xs text-red-400 bg-red-950/40 hover:bg-red-900/30 border border-red-900/50 px-2.5 py-1 rounded transition-colors">Sign Out</button>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-6 space-y-8">
         
-        <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-gray-950 p-6 rounded-xl border border-gray-800">
-                <p class="text-sm font-medium text-gray-400 tracking-wider uppercase">Total Logs Processed</p>
-                <h3 id="total-logs" class="text-4xl font-extrabold mt-2 text-white">Loading...</h3>
+        <section class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl shadow-sm">
+                <p class="text-sm font-medium text-gray-400">Total API Requests</p>
+                <p class="text-3xl font-bold mt-2 font-mono text-green-400" id="metric-total">0</p>
             </div>
-            <div class="bg-gray-950 p-6 rounded-xl border border-gray-800">
-                <p class="text-sm font-medium text-gray-400 tracking-wider uppercase">Urgent Incident Traffic</p>
-                <h3 id="urgent-logs" class="text-4xl font-extrabold mt-2 text-red-400">Loading...</h3>
+            <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl shadow-sm">
+                <p class="text-sm font-medium text-gray-400">Cache Hit Rate</p>
+                <p class="text-3xl font-bold mt-2 font-mono text-blue-400" id="metric-cache">0%</p>
             </div>
-            <div class="bg-gray-950 p-6 rounded-xl border border-gray-800">
-                <p class="text-sm font-medium text-gray-400 tracking-wider uppercase">Cache Authorization Hits</p>
-                <h3 class="text-4xl font-extrabold mt-2 text-green-400">100% Active</h3>
+            <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl shadow-sm">
+                <p class="text-sm font-medium text-gray-400">Active Tenants</p>
+                <p class="text-3xl font-bold mt-2 font-mono text-purple-400" id="metric-tenants">0</p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl shadow-sm">
+                <p class="text-sm font-medium text-gray-400">Account Tier Status</p>
+                <p class="text-xl font-bold mt-2 font-mono text-yellow-400 uppercase" id="metric-tier">Checking...</p>
             </div>
         </section>
 
-        <section class="bg-gray-950 p-6 rounded-xl border border-gray-800 grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div class="space-y-4 lg:col-span-1">
-                <h2 class="text-lg font-bold text-white">Provision API Credentials</h2>
-                <p class="text-sm text-gray-400">Generate secure, multi-tenant secret client keys prefixed with <code class="text-blue-400 font-mono">ag_sk_</code> to provision access to the proxy gateway layer.</p>
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl lg:col-span-2">
+                <h3 class="text-lg font-semibold mb-4">Cache Traffic Telemetry</h3>
+                <div class="h-64 flex items-center justify-center">
+                    <canvas id="telemetryChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl flex flex-col justify-between space-y-6">
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">Multi-Tenant Key Manager</h3>
+                    <p class="text-sm text-gray-400 mb-4">Provision securely hashed keys to isolate workflow layers like n8n.</p>
+                    
+                    <div class="space-y-3">
+                        <label class="block text-xs font-mono tracking-wider uppercase text-gray-400">Tenant Label Name</label>
+                        <input type="text" id="tenant-input" placeholder="e.g., n8n Production Engine" 
+                            class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-green-500 text-white font-mono">
+                    </div>
+                </div>
                 
-                <div class="space-y-2">
-                    <label class="block text-xs uppercase tracking-wider text-gray-500 font-bold">Tenant Name</label>
-                    <input type="text" id="clientNameInput" placeholder="e.g. Acme Corp Enterprise" class="w-full bg-gray-900 border border-gray-800 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
-                </div>
-                <button onclick="generateNewKey()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm py-2 px-4 rounded transition shadow-lg shadow-blue-600/10">
-                    Generate Access Key
-                </button>
-            </div>
-
-            <div class="lg:col-span-2 flex flex-col justify-between">
-                <h2 class="text-lg font-bold text-white mb-4">Active API Keys Matrix</h2>
-                <div class="overflow-x-auto border border-gray-900 rounded-lg max-h-[220px] overflow-y-auto">
-                    <table class="w-full text-left text-sm text-gray-400">
-                        <thead class="bg-gray-900 text-xs uppercase text-gray-300 border-b border-gray-800 sticky top-0">
-                            <tr>
-                                <th class="py-2.5 px-4">Client Tenant</th>
-                                <th class="py-2.5 px-4">Secret Key Value</th>
-                                <th class="py-2.5 px-4">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="keys-table-body">
-                            </tbody>
-                    </table>
+                <div class="space-y-3">
+                    <button onclick="generateKey()" class="w-full bg-green-600 hover:bg-green-500 text-white text-sm font-medium py-3 rounded-lg transition-colors shadow-lg shadow-green-900/20">
+                        Generate Access Key
+                    </button>
+                    
+                    <div class="border-t border-gray-700 my-4 pt-4">
+                        <p class="text-xs text-gray-400 text-center mb-2">Need unlimited high-speed token access?</p>
+                        <button onclick="redirectToStripe()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-mono py-2 rounded shadow-md transition-colors">
+                            ⚡ Upgrade to Pro Tier via Stripe
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="bg-gray-950 p-6 rounded-xl border border-gray-800 lg:col-span-1 flex flex-col justify-between">
-                <h2 class="text-lg font-bold text-white mb-4">Traffic Classification</h2>
-                <div class="relative w-full max-w-[180px] mx-auto">
-                    <canvas id="trafficChart"></canvas>
-                </div>
+        <section class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-700">
+                <h3 class="text-lg font-semibold">Active Authorized Tenants</h3>
             </div>
-            
-            <div class="bg-gray-950 p-6 rounded-xl border border-gray-800 lg:col-span-2">
-                <h2 class="text-lg font-bold text-white mb-4">Real-Time Routing Audit Stream</h2>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm text-gray-400">
-                        <thead class="bg-gray-900 text-xs uppercase text-gray-300 border-b border-gray-800">
-                            <tr>
-                                <th class="py-3 px-4">Timestamp</th>
-                                <th class="py-3 px-4">Message</th>
-                                <th class="py-3 px-4">Classification</th>
-                                <th class="py-3 px-4">Target Route</th>
-                            </tr>
-                        </thead>
-                        <tbody id="logs-table-body">
-                            </tbody>
-                    </table>
-                </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-900 text-xs font-mono tracking-wider uppercase text-gray-400 border-b border-gray-700">
+                            <th class="px-6 py-3.5">Tenant Description</th>
+                            <th class="px-6 py-3.5">One-Way Key Hash (SHA-256)</th>
+                            <th class="px-6 py-3.5">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="keys-table-body" class="divide-y divide-gray-700/50 text-sm font-mono">
+                        <tr>
+                            <td colspan="3" class="px-6 py-8 text-center text-gray-500">Querying active credentials matrix...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-700">
+                <h3 class="text-lg font-semibold">Real-Time Proxy Requests Log</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-900 text-xs font-mono tracking-wider uppercase text-gray-400 border-b border-gray-700">
+                            <th class="px-6 py-3.5">Timestamp</th>
+                            <th class="px-6 py-3.5">Action</th>
+                            <th class="px-6 py-3.5">Cache State</th>
+                            <th class="px-6 py-3.5">Classification Tag</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-table-body" class="divide-y divide-gray-700/50 text-sm font-mono">
+                        <tr>
+                            <td colspan="4" class="px-6 py-8 text-center text-gray-500">Awaiting stream events from background worker queue...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </section>
     </main>
 
     <script>
-        let trafficChartInstance = null;
+        let telemetryChart = null;
+        document.getElementById('live-url').innerText = window.location.origin;
 
+        // ==========================================
+        // 🔑 INJECT YOUR PRODUCTION CREDENTIALS HERE
+        // ==========================================
+        const SUPABASE_URL = "https://your-supabase-id.supabase.co"; // <-- Replace with your real Supabase URL
+        const SUPABASE_ANON_KEY = "your-actual-anon-public-key";    // <-- Replace with your real Anon Public Key
+
+        let supabaseClient;
+
+        // Initialize safely only after the browser environment completely loads
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof supabase !== 'undefined') {
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                checkUserSession();
+            } else {
+                console.error("Supabase SDK CDN load timeout.");
+            }
+        });
+
+        // Check user state securely
+        async function checkUserSession() {
+            if (!supabaseClient) return;
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) {
+                document.getElementById('auth-modal').classList.remove('hidden');
+                document.getElementById('metric-tier').innerText = "RESTRICTED";
+            } else {
+                document.getElementById('auth-modal').classList.add('hidden');
+                document.getElementById('metric-tier').innerText = "PRO ACCOUNT";
+                
+                // Kickoff platform loops
+                fetchDashboardTelemetry();
+                fetchTenantKeys();
+            }
+        }
+
+        async function handleSignUp() {
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const { error } = await supabaseClient.auth.signUp({ email, password });
+            if (error) showAuthError(error.message);
+            else alert("Registration pending! Check your email inbox for the verification link.");
+        }
+
+        async function handleSignIn() {
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) showAuthError(error.message);
+            else checkUserSession();
+        }
+
+        async function handleSignOut() {
+            if (!supabaseClient) return;
+            await supabaseClient.auth.signOut();
+            window.location.reload();
+        }
+
+        function showAuthError(msg) {
+            const errEl = document.getElementById('auth-error');
+            errEl.innerText = msg;
+            errEl.classList.remove('hidden');
+        }
+
+        // Fetch metrics and log streams securely using clean, relative paths
         async function fetchDashboardTelemetry() {
             try {
-                // Fetch Historical Telemetry Logs
-                const logRes = await fetch('/api/analytics');
-                const logResult = await logRes.json();
-                
-                if (logResult.status === 'success') {
-                    const data = logResult.data;
-                    document.getElementById('total-logs').innerText = data.length;
-                    const urgentCount = data.filter(l => l.classification === 'urgent').length;
-                    document.getElementById('urgent-logs').innerText = urgentCount;
+                const response = await fetch('/api/analytics');
+                if (!response.ok) throw new Error('Failed to parse remote cloud records.');
+                const data = await response.json();
 
-                    const tableBody = document.getElementById('logs-table-body');
-                    tableBody.innerHTML = '';
-                    data.slice(0, 5).forEach(log => {
-                        const date = new Date(log.created_at).toLocaleTimeString();
-                        const badgeColor = log.classification === 'urgent' ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-gray-800 text-gray-400 border-gray-700';
-                        
-                        tableBody.innerHTML += `
-                            <tr class="border-b border-gray-900 hover:bg-gray-900/40 transition">
-                                <td class="py-3 px-4 text-gray-500">${date}</td>
-                                <td class="py-3 px-4 max-w-xs truncate text-gray-200">${log.incoming_message}</td>
-                                <td class="py-3 px-4">
-                                    <span class="px-2 py-0.5 text-xs font-semibold rounded border ${badgeColor}">${log.classification}</span>
-                                </td>
-                                <td class="py-3 px-4 font-mono text-xs text-blue-400">${log.routing_target}</td>
-                            </tr>
-                        `;
-                    });
+                document.getElementById('metric-total').innerText = data.totalRequests || 0;
+                document.getElementById('metric-cache').innerText = `${data.cacheHitRate || 0}%`;
+                document.getElementById('metric-tenants').innerText = data.activeTenants || 0;
 
-                    // Manage and Render Chart
-                    const ctx = document.getElementById('trafficChart').getContext('2d');
-                    if (trafficChartInstance) { trafficChartInstance.destroy(); }
-                    trafficChartInstance = new Chart(ctx, {
-                        type: 'doughnut',
-                        data: {
-                            labels: ['Urgent', 'Routine'],
-                            datasets: [{
-                                data: [urgentCount, data.length - urgentCount],
-                                backgroundColor: ['#f87171', '#4b5563'],
-                                borderWidth: 0
-                            }]
-                        },
-                        options: {
-                            plugins: { legend: { display: false } },
-                            cutout: '75%'
-                        }
-                    });
-                }
-
-                // Fetch Registered Tenant API Keys
-                await fetchTenantKeys();
-
-            } catch (err) {
-                console.error("Dashboard engine failure:", err);
-            }
-        }
-
-        async function fetchTenantKeys() {
-            const res = await fetch('/api/keys');
-            const result = await res.json();
-            if (result.status === 'success') {
-                const keysTable = document.getElementById('keys-table-body');
-                keysTable.innerHTML = '';
-                result.data.forEach(key => {
-                    const maskedKey = `${key.key_value.substring(0, 9)}••••••••••••••••`;
-                    keysTable.innerHTML += `
-                        <tr class="border-b border-gray-900">
-                            <td class="py-2.5 px-4 font-medium text-white">${key.client_name}</td>
-                            <td class="py-2.5 px-4 font-mono text-xs text-gray-300 flex items-center justify-between group">
-                                <span>${maskedKey}</span>
-                                <button onclick="navigator.clipboard.writeText('${key.key_value}'); alert('Copied secret key to clipboard!')" class="text-blue-500 opacity-0 group-hover:opacity-100 transition text-[11px] ml-2 font-sans bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20 hover:bg-blue-500/20">Copy</button>
-                            </td>
-                            <td class="py-2.5 px-4">
-                                <span class="px-1.5 py-0.5 rounded text-[11px] ${key.is_active ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-800 text-gray-500'}">
-                                    ${key.is_active ? 'Active' : 'Revoked'}
+                const logsBody = document.getElementById('logs-table-body');
+                if (data.recentLogs && data.recentLogs.length > 0) {
+                    logsBody.innerHTML = data.recentLogs.map(log => `
+                        <tr class="hover:bg-gray-700/30 transition-colors">
+                            <td class="px-6 py-4 text-gray-400">${new Date(log.created_at).toLocaleTimeString()}</td>
+                            <td class="px-6 py-4 text-green-400 font-semibold">${log.action}</td>
+                            <td class="px-6 py-4">
+                                <span class="px-2.5 py-1 rounded text-xs font-bold ${log.cache_hit ? 'bg-blue-900/60 text-blue-300' : 'bg-yellow-900/60 text-yellow-300'}">
+                                    ${log.cache_hit ? 'CACHE HIT' : 'CACHE MISS'}
                                 </span>
                             </td>
+                            <td class="px-6 py-4 text-gray-300 font-sans">${log.payload_summary || 'N/A'}</td>
                         </tr>
-                    `;
-                });
+                    `).join('');
+                } else {
+                    logsBody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">No requests handled yet. Run an n8n node to fire up data stream!</td></tr>`;
+                }
+
+                updateChartDisplay(data.cacheHits || 0, data.cacheMisses || 0);
+            } catch (err) {
+                console.error("Telemetry pipeline error:", err);
             }
         }
 
-        async function generateNewKey() {
-            const clientNameInput = document.getElementById('clientNameInput');
-            const clientName = clientNameInput.value.trim();
-            if (!clientName) return alert('Please enter a distinct tenant name identifier first.');
-
-            const res = await fetch('/api/keys/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client_name: clientName })
-            });
-            
-            const result = await res.json();
-            if (result.status === 'success') {
-                clientNameInput.value = '';
-                await fetchTenantKeys();
-            }
-        }
-        
-        // Boot dashboard tracking layers
         async function fetchTenantKeys() {
-    const res = await fetch('/api/keys');
-    const result = await res.json();
-    if (result.status === 'success') {
-        const keysTable = document.getElementById('keys-table-body');
-        keysTable.innerHTML = '';
-        result.data.forEach(key => {
-            // Because it's stored as a secure hash in the DB, show a clean masked placeholder
-            const placeholderDisplay = `•••••••••••••••• [Hashed Summary]`;
-            keysTable.innerHTML += `
-                <tr class="border-b border-gray-900">
-                    <td class="py-2.5 px-4 font-medium text-white">${key.client_name}</td>
-                    <td class="py-2.5 px-4 font-mono text-xs text-gray-500">
-                        <span>${placeholderDisplay}</span>
-                    </td>
-                    <td class="py-2.5 px-4">
-                        <span class="px-1.5 py-0.5 rounded text-[11px] ${key.is_active ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-800 text-gray-500'}">
-                            ${key.is_active ? 'Active' : 'Revoked'}
-                        </span>
-                    </td>
-                </tr>
-            `;
-        });
-    }
-}
+            try {
+                const response = await fetch('/api/keys');
+                if (!response.ok) throw new Error('Failed to download security keys.');
+                const keys = await response.json();
+
+                const keysBody = document.getElementById('keys-table-body');
+                if (keys && keys.length > 0) {
+                    keysBody.innerHTML = keys.map(key => `
+                        <tr class="hover:bg-gray-700/30 transition-colors">
+                            <td class="px-6 py-4 text-purple-300 font-semibold font-sans">${key.name}</td>
+                            <td class="px-6 py-4 text-gray-400 text-xs">${key.key_hash}</td>
+                            <td class="px-6 py-4">
+                                <span class="text-xs font-bold bg-green-900/50 text-green-400 px-2.5 py-1 rounded-full border border-green-800">ACTIVE</span>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    keysBody.innerHTML = `<tr><td colspan="3" class="px-6 py-8 text-center text-gray-500">No keys provisioned. Generate an API Key above to begin.</td></tr>`;
+                }
+            } catch (err) {
+                console.error("Keys synchronization exception:", err);
+            }
+        }
+
+        async function generateKey() {
+            const inputField = document.getElementById('tenant-input');
+            const name = inputField.value.trim();
+            if (!name) { alert("Please enter a clear tenant or workflow label first!"); return; }
+
+            try {
+                const response = await fetch('/api/keys/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (!response.ok) throw new Error('Key generation routine rejected.');
+                const result = await response.json();
+
+                alert(`🎉 API KEY GENERATED SUCCESSFULLY!\n\nTenant: ${name}\nKey: ${result.apiKey}\n\n⚠️ IMPORTANT: Copy this key exactly as shown now. For security purposes, it is stored as a one-way hash and cannot be seen again!`);
+                inputField.value = '';
+                fetchTenantKeys();
+                fetchDashboardTelemetry();
+            } catch (err) {
+                alert("Could not generate key. Verify database connections.");
+            }
+        }
+
+        // Stripe Checkout Pipeline Initialization
+        async function redirectToStripe() {
+            try {
+                const sessionResponse = await fetch('/api/billing/checkout', { method: 'POST' });
+                const sessionData = await sessionResponse.json();
+                if (sessionData.url) {
+                    window.location.href = sessionData.url; 
+                } else {
+                    alert("Stripe Session compilation error. Check environment strings.");
+                }
+            } catch (err) {
+                alert("Billing infrastructure connection timeout.");
+            }
+        }
+
+        function updateChartDisplay(hits, misses) {
+            const ctx = document.getElementById('telemetryChart').getContext('2d');
+            if (telemetryChart) telemetryChart.destroy();
+            if (hits === 0 && misses === 0) { hits = 1; misses = 1; }
+
+            telemetryChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Cache Hits (Ultra Fast)', 'Cache Misses (LLM Execution)'],
+                    datasets: [{
+                        data: [hits, misses],
+                        backgroundColor: ['#3b82f6', '#eab308'],
+                        borderColor: '#1f2937',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', font: { family: 'monospace' } } } }
+                }
+            });
+        }
+
+        // Continuous telemetry streams pooling interval
+        setInterval(fetchDashboardTelemetry, 5000);
     </script>
 </body>
 </html>
