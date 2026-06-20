@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Gateway Proxy Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans antialiased">
+
+    <header class="border-b border-gray-800 bg-gray-950 px-8 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="h-3 w-3 rounded-full bg-green-500 animate-ping"></div>
+            <h1 class="text-xl font-bold tracking-tight text-white">AI Gateway Proxy <span class="text-blue-500 font-medium text-sm border border-blue-500/30 px-2 py-0.5 rounded ml-2 bg-blue-500/10">v1.2 Multi-Tenant</span></h1>
+        </div>
+        <div class="text-sm text-gray-400">System Status: <span class="text-green-400 font-medium">Operational</span></div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-gray-950 p-6 rounded-xl border border-gray-800">
+                <p class="text-sm font-medium text-gray-400 tracking-wider uppercase">Total Logs Processed</p>
+                <h3 id="total-logs" class="text-4xl font-extrabold mt-2 text-white">Loading...</h3>
+            </div>
+            <div class="bg-gray-950 p-6 rounded-xl border border-gray-800">
+                <p class="text-sm font-medium text-gray-400 tracking-wider uppercase">Urgent Incident Traffic</p>
+                <h3 id="urgent-logs" class="text-4xl font-extrabold mt-2 text-red-400">Loading...</h3>
+            </div>
+            <div class="bg-gray-950 p-6 rounded-xl border border-gray-800">
+                <p class="text-sm font-medium text-gray-400 tracking-wider uppercase">Cache Authorization Hits</p>
+                <h3 class="text-4xl font-extrabold mt-2 text-green-400">100% Active</h3>
+            </div>
+        </section>
+
+        <section class="bg-gray-950 p-6 rounded-xl border border-gray-800 grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="space-y-4 lg:col-span-1">
+                <h2 class="text-lg font-bold text-white">Provision API Credentials</h2>
+                <p class="text-sm text-gray-400">Generate secure, multi-tenant secret client keys prefixed with <code class="text-blue-400 font-mono">ag_sk_</code> to provision access to the proxy gateway layer.</p>
+                
+                <div class="space-y-2">
+                    <label class="block text-xs uppercase tracking-wider text-gray-500 font-bold">Tenant Name</label>
+                    <input type="text" id="clientNameInput" placeholder="e.g. Acme Corp Enterprise" class="w-full bg-gray-900 border border-gray-800 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+                </div>
+                <button onclick="generateNewKey()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm py-2 px-4 rounded transition shadow-lg shadow-blue-600/10">
+                    Generate Access Key
+                </button>
+            </div>
+
+            <div class="lg:col-span-2 flex flex-col justify-between">
+                <h2 class="text-lg font-bold text-white mb-4">Active API Keys Matrix</h2>
+                <div class="overflow-x-auto border border-gray-900 rounded-lg max-h-[220px] overflow-y-auto">
+                    <table class="w-full text-left text-sm text-gray-400">
+                        <thead class="bg-gray-900 text-xs uppercase text-gray-300 border-b border-gray-800 sticky top-0">
+                            <tr>
+                                <th class="py-2.5 px-4">Client Tenant</th>
+                                <th class="py-2.5 px-4">Secret Key Value</th>
+                                <th class="py-2.5 px-4">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="keys-table-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-gray-950 p-6 rounded-xl border border-gray-800 lg:col-span-1 flex flex-col justify-between">
+                <h2 class="text-lg font-bold text-white mb-4">Traffic Classification</h2>
+                <div class="relative w-full max-w-[180px] mx-auto">
+                    <canvas id="trafficChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="bg-gray-950 p-6 rounded-xl border border-gray-800 lg:col-span-2">
+                <h2 class="text-lg font-bold text-white mb-4">Real-Time Routing Audit Stream</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-gray-400">
+                        <thead class="bg-gray-900 text-xs uppercase text-gray-300 border-b border-gray-800">
+                            <tr>
+                                <th class="py-3 px-4">Timestamp</th>
+                                <th class="py-3 px-4">Message</th>
+                                <th class="py-3 px-4">Classification</th>
+                                <th class="py-3 px-4">Target Route</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let trafficChartInstance = null;
+
+        async function fetchDashboardTelemetry() {
+            try {
+                // Fetch Historical Telemetry Logs
+                const logRes = await fetch('/api/analytics');
+                const logResult = await logRes.json();
+                
+                if (logResult.status === 'success') {
+                    const data = logResult.data;
+                    document.getElementById('total-logs').innerText = data.length;
+                    const urgentCount = data.filter(l => l.classification === 'urgent').length;
+                    document.getElementById('urgent-logs').innerText = urgentCount;
+
+                    const tableBody = document.getElementById('logs-table-body');
+                    tableBody.innerHTML = '';
+                    data.slice(0, 5).forEach(log => {
+                        const date = new Date(log.created_at).toLocaleTimeString();
+                        const badgeColor = log.classification === 'urgent' ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-gray-800 text-gray-400 border-gray-700';
+                        
+                        tableBody.innerHTML += `
+                            <tr class="border-b border-gray-900 hover:bg-gray-900/40 transition">
+                                <td class="py-3 px-4 text-gray-500">${date}</td>
+                                <td class="py-3 px-4 max-w-xs truncate text-gray-200">${log.incoming_message}</td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-0.5 text-xs font-semibold rounded border ${badgeColor}">${log.classification}</span>
+                                </td>
+                                <td class="py-3 px-4 font-mono text-xs text-blue-400">${log.routing_target}</td>
+                            </tr>
+                        `;
+                    });
+
+                    // Manage and Render Chart
+                    const ctx = document.getElementById('trafficChart').getContext('2d');
+                    if (trafficChartInstance) { trafficChartInstance.destroy(); }
+                    trafficChartInstance = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Urgent', 'Routine'],
+                            datasets: [{
+                                data: [urgentCount, data.length - urgentCount],
+                                backgroundColor: ['#f87171', '#4b5563'],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            plugins: { legend: { display: false } },
+                            cutout: '75%'
+                        }
+                    });
+                }
+
+                // Fetch Registered Tenant API Keys
+                await fetchTenantKeys();
+
+            } catch (err) {
+                console.error("Dashboard engine failure:", err);
+            }
+        }
+
+        async function fetchTenantKeys() {
+            const res = await fetch('/api/keys');
+            const result = await res.json();
+            if (result.status === 'success') {
+                const keysTable = document.getElementById('keys-table-body');
+                keysTable.innerHTML = '';
+                result.data.forEach(key => {
+                    const maskedKey = `${key.key_value.substring(0, 9)}••••••••••••••••`;
+                    keysTable.innerHTML += `
+                        <tr class="border-b border-gray-900">
+                            <td class="py-2.5 px-4 font-medium text-white">${key.client_name}</td>
+                            <td class="py-2.5 px-4 font-mono text-xs text-gray-300 flex items-center justify-between group">
+                                <span>${maskedKey}</span>
+                                <button onclick="navigator.clipboard.writeText('${key.key_value}'); alert('Copied secret key to clipboard!')" class="text-blue-500 opacity-0 group-hover:opacity-100 transition text-[11px] ml-2 font-sans bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20 hover:bg-blue-500/20">Copy</button>
+                            </td>
+                            <td class="py-2.5 px-4">
+                                <span class="px-1.5 py-0.5 rounded text-[11px] ${key.is_active ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-800 text-gray-500'}">
+                                    ${key.is_active ? 'Active' : 'Revoked'}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+
+        async function generateNewKey() {
+            const clientNameInput = document.getElementById('clientNameInput');
+            const clientName = clientNameInput.value.trim();
+            if (!clientName) return alert('Please enter a distinct tenant name identifier first.');
+
+            const res = await fetch('/api/keys/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_name: clientName })
+            });
+            
+            const result = await res.json();
+            if (result.status === 'success') {
+                clientNameInput.value = '';
+                await fetchTenantKeys();
+            }
+        }
+        
+        // Boot dashboard tracking layers
+        async function fetchTenantKeys() {
+    const res = await fetch('/api/keys');
+    const result = await res.json();
+    if (result.status === 'success') {
+        const keysTable = document.getElementById('keys-table-body');
+        keysTable.innerHTML = '';
+        result.data.forEach(key => {
+            // Because it's stored as a secure hash in the DB, show a clean masked placeholder
+            const placeholderDisplay = `•••••••••••••••• [Hashed Summary]`;
+            keysTable.innerHTML += `
+                <tr class="border-b border-gray-900">
+                    <td class="py-2.5 px-4 font-medium text-white">${key.client_name}</td>
+                    <td class="py-2.5 px-4 font-mono text-xs text-gray-500">
+                        <span>${placeholderDisplay}</span>
+                    </td>
+                    <td class="py-2.5 px-4">
+                        <span class="px-1.5 py-0.5 rounded text-[11px] ${key.is_active ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-800 text-gray-500'}">
+                            ${key.is_active ? 'Active' : 'Revoked'}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+}
+    </script>
+</body>
+</html>
