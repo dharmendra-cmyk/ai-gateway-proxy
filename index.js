@@ -1,7 +1,6 @@
-// Ensure there are TWO underscores before dirname here:
-app.use(express.static(path.join(__dirname, 'public')));
+const express = require('express');
+const path = require('path');
+const app = express(); // <-- This line must exist before app.use()!
 
-// Ensure there are TWO underscores before dirname here too:
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+app.use(express.static(path.join(__dirname, 'public')));
+// ... rest of your code
