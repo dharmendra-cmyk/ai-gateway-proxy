@@ -1,144 +1,65 @@
+// server.js - Authenticated Enterprise Production Gateway
+require('dotenv').config();
 const express = require('express');
-const router = express.Router();
+const { createClient } = require('@supabase/supabase-js');
 
-// Import the Stripe billing controller function
-const { createCheckoutSession } = require('./billing');
+const app = express();
+app.use(express.json());
 
-// Placeholder middlewares for your existing operational gateway guardrails
-const gatekeeper = async (req, res, next) => {
-    // In production, this validates the 'x-api-key' (ag_sk_...) against Supabase/Redis hashes
-    next();
-};
+// Initialize secure connection using our .env cloud parameters
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-const rateLimiter = async (req, res, next) => {
-    // Tracks request limits based on the tenant's current pricing plan
-    next();
-};
+if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("CRITICAL ERROR: Missing SUPABASE_URL or SUPABASE_ANON_KEY in your .env file!");
+    process.exit(1);
+}
 
-// ==========================================
-// 💳 STRIPE BILLING MARKETPLACE ENDPOINT
-// ==========================================
-/**
- * @route   POST /api/billing/checkout
- * @desc    Compiles active billing context and serves a secure hosted Stripe checkout URL link
- * @access  Protected (Dashboard UI Session)
- */
-router.post('/billing/checkout', createCheckoutSession);
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const N8N_PRODUCTION_WEBHOOK = "http://localhost:5678/webhook/a87430ce-25a4-43be-b924-d64598976cfe";
 
+// Commercial Ingress Endpoint
+app.post('/api/v1/execute', async (req, res) => {
+    const clientApiKey = req.headers['x-api-key'];
+    const { message_id, message_text } = req.body;
 
-// ==========================================
-// 🛡️ MULTI-TENANT GATEWAY ROUTING INTERFACES
-// ==========================================
+    if (!clientApiKey) {
+        return res.status(401).json({ error: "Unauthorized: Missing x-api-key header." });
+    }
 
-/**
- * @route   POST /api/classify
- * @desc    Proxies incoming raw payload strings to Gemini and stores out-of-band telemetry logs
- * @access  Protected (External workflows via x-api-key)
- */
-router.post('/classify', gatekeeper, rateLimiter, async (req, res) => {
     try {
-        const { text } = req.body;
-        
-        res.json({
+        // Authenticate client instantly against your cloud database table: api_keys
+        const { data: user, error } = await supabase
+            .from('api_keys')
+            .select('*')
+            .eq('secret_api_key', clientApiKey)
+            .single();
+
+        if (error || !user) {
+            return res.status(403).json({ error: "Forbidden: Invalid API key." });
+        }
+
+        // Enforce monetization parameter: Drop access if subscription isn't active
+        if (user.subscription_status !== 'active') {
+            return res.status(402).json({ error: "Payment Required: Please update your subscription billing details." });
+        }
+
+        // Forward the request smoothly to your local n8n runtime engine
+        const response = await fetch(N8N_PRODUCTION_WEBHOOK, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message_id, message_text, client_id: user.id })
+        });
+
+        return res.status(200).json({
             status: "success",
-            timestamp: new Date().toISOString(),
-            data: {
-                category: "Customer Support",
-                confidence: 0.98,
-                processed_by: "Gemini-Cloud-Engine-V1",
-                cached: false
-            }
+            message: "Authentication verified. Payload successfully forwarded to core automation engine."
         });
+
     } catch (err) {
-        console.error("Gateway execution error:", err);
-        res.status(500).json({ error: "Internal operational failure inside processing pipeline." });
+        return res.status(500).json({ error: "Internal Gateway Error", details: err.message });
     }
 });
 
-/**
- * @route   GET /api/analytics
- * @desc    Gathers data rows across global request counters, cache tracking tables, and metrics charts
- * @access  Public Admin Dashboard Interface Synchronizer
- */
-router.get('/analytics', async (req, res) => {
-    try {
-        // Safe fallback dataset consumed cleanly by index.html template components
-        return res.json({
-            totalRequests: 12, 
-            cacheHitRate: 85,
-            activeTenants: 2,
-            cacheHits: 10,
-            cacheMisses: 2,
-            recentLogs: [
-                {
-                    created_at: new Date().toISOString(),
-                    action: "TEXT_CLASSIFICATION",
-                    cache_hit: true,
-                    payload_summary: "Customer Support / High Priority"
-                },
-                {
-                    created_at: new Date(Date.now() - 60000).toISOString(),
-                    action: "TEXT_CLASSIFICATION",
-                    cache_hit: false,
-                    payload_summary: "Marketing Copy Generation"
-                }
-            ]
-        });
-    } catch (err) {
-        console.error("Analytics fallback guard triggered:", err);
-        // Direct safety fallback return structure to guarantee dashboard boots up even if DB is cooking
-        return res.json({ 
-            totalRequests: 0, 
-            cacheHitRate: 0, 
-            activeTenants: 0, 
-            cacheHits: 0, 
-            cacheMisses: 0, 
-            recentLogs: [] 
-        });
-    }
-});
-
-/**
- * @route   GET /api/keys
- * @desc    Provides a secure list of cryptographically tracked SHA-256 hashes for authorized tenants
- * @access  Dashboard UI Panel Synchronizer
- */
-router.get('/keys', async (req, res) => {
-    try {
-        res.json([
-            {
-                name: "n8n Production Cloud Engine",
-                key_hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                status: "ACTIVE"
-            }
-        ]);
-    } catch (err) {
-        res.status(500).json({ error: "Database authentication directory sync exception." });
-    }
-});
-
-/**
- * @route   POST /api/keys/generate
- * @desc    Provisions a new raw ag_sk_ string to the client and commits a SHA-256 secure hash to Supabase
- * @access  Dashboard Admin Operation
- */
-router.post('/keys/generate', async (req, res) => {
-    try {
-        const { name } = req.body;
-        if (!name) return res.status(400).json({ error: "Missing required property: name label" });
-
-        // Generate mock credentials structure tracking client context format
-        const mockRandomString = Math.random().toString(36).substring(2, 24);
-        const generatedTokenSecret = `ag_sk_prod_${mockRandomString}`;
-
-        res.json({
-            success: true,
-            name: name,
-            apiKey: generatedTokenSecret
-        });
-    } catch (err) {
-        res.status(500).json({ error: "Failed to initialize standard cryptographic provisioning routine." });
-    }
-});
-
-module.exports = router;
+const PORT = 3000;
+app.listen(PORT, () => console.log(`\n[BUSINESS GATEWAY RUNNING]: Listening on port ${PORT}`));
