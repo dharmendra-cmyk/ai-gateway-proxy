@@ -4,7 +4,6 @@
   "description": "FDA 21 CFR Part 11 Automated CSV Engine",
   "main": "index.js",
   "dependencies": {
-    "express": "^4.19.2",
-    "ioredis": "^5.4.1"
+    "express": "^4.19.2"
   }
 }
