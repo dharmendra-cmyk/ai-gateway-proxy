@@ -84,16 +84,16 @@ app.get('/', async (req, res) => {
                         </tr>
                     </thead>
                     <tbody>
-                        ${logs.map(log => `
+                        \${logs.map(log => `
                             <tr>
-                                <td class="timestamp">${new Date(log.timestamp).toLocaleString()}</td>
-                                <td><strong>${log.testName}</strong></td>
-                                <td>${log.executedBy}</td>
-                                <td><code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${log.systemVersion}</code></td>
-                                <td><span class="${log.status === 'PASSED' ? 'status-passed' : 'status-failed'}">${log.status}</span></td>
+                                <td class="timestamp">\${new Date(log.timestamp).toLocaleString()}</td>
+                                <td><strong>\${log.testName}</strong></td>
+                                <td>\${log.executedBy}</td>
+                                <td><code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">\${log.systemVersion}</code></td>
+                                <td><span class="\${log.status === 'PASSED' ? 'status-passed' : 'status-failed'}">\${log.status}</span></td>
                             </tr>
                         `).join('')}
-                        ${logs.length === 0 ? '<tr id="noDataRow"><td colspan="5" style="text-align:center; color:#94a3b8; padding:40px;">No audit logs found in ledger database.</td></tr>' : ''}
+                        \${logs.length === 0 ? '<tr id="noDataRow"><td colspan="5" style="text-align:center; color:#94a3b8; padding:40px;">No audit logs found in ledger database.</td></tr>' : ''}
                     </tbody>
                 </table>
             </div>
@@ -133,13 +133,13 @@ app.get('/', async (req, res) => {
                         const row = [], cols = rows[i].querySelectorAll("td, th");
                         
                         for (let j = 0; j < cols.length; j++) {
-                            let data = cols[j].innerText.replace(/\\n/g, '').replace(/,/g, ';').trim();
+                            let data = cols[j].innerText.replace(/\\\\n/g, '').replace(/,/g, ';').trim();
                             row.push('"' + data + '"');
                         }
                         csv.push(row.join(","));
                     }
                     
-                    const csvContent = "data:text/csv;charset=utf-8," + csv.join("\\n");
+                    const csvContent = "data:text/csv;charset=utf-8," + csv.join("\\\\n");
                     const encodedUri = encodeURI(csvContent);
                     const link = document.createElement("a");
                     link.setAttribute("href", encodedUri);
