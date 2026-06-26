@@ -10,8 +10,8 @@ const PORT = process.env.PORT || 10000;
 // Connect to your Upstash Redis database using the environment variable
 const redis = new Redis(process.env.REDIS_URL);
 
-// 1. Professional Audit Log Dashboard View with Search & Export features
-app.get('/dashboard', async (req, res) => {
+// 1. MAIN HOME PAGE ROUTE: Your dashboard is now the default page!
+app.get('/', async (req, res) => {
     try {
         // Fetch all keys matching our audit log pattern
         const keys = await redis.keys('audit:log:*');
@@ -198,11 +198,6 @@ app.post('/api/v1/validation-logs', async (req, res) => {
         console.error('Ledger Storage Error:', error);
         return res.status(500).json({ error: 'Internal Server Error.' });
     }
-});
-
-// Default Fallback Route
-app.get('*', (req, res) => {
-    res.send('FDA 21 CFR Part 11 Automated CSV Engine Live.');
 });
 
 app.listen(PORT, () => {
