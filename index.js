@@ -42,10 +42,12 @@ app.get('/dashboard', async (req, res) => {
                 .badge { background-color: #10b981; color: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
                 
                 /* Action controls bar stacked clearly */
-                .controls { display: flex; flex-direction: row; justify-content: space-between; gap: 20px; margin-bottom: 25px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
-                .search-box { flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
-                .btn-export { background-color: #2563eb; color: white !important; border: none; padding: 12px 24px; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; min-width: 220px; text-align: center; display: block; height: 45px; line-height: 21px; box-sizing: border-box; }
-                .btn-export:hover { background-color: #1d4ed8; }
+                .controls { display: flex; flex-direction: row; justify-content: space-between; gap: 20px; margin-bottom: 25px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; align-items: center; }
+                .search-box { flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box; height: 45px; }
+                
+                /* Button fixed color typography */
+                .btn-export { background-color: #2563eb; color: #ffffff !important; border: none; padding: 0 24px; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; min-width: 240px; text-align: center; display: inline-block; height: 45px; line-height: 45px; box-sizing: border-box; text-decoration: none; }
+                .btn-export:hover { background-color: #1d4ed8; color: #ffffff !important; }
 
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; text-align: left; }
                 th { background-color: #f8fafc; color: #64748b; padding: 12px; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #eaeaea; }
