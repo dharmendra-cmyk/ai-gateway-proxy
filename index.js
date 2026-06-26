@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 10000;
 // Connect to your Upstash Redis database using the environment variable
 const redis = new Redis(process.env.REDIS_URL);
 
-// 1. Professional Audit Log Dashboard View
+// 1. Professional Audit Log Dashboard View with Search & Export features
 app.get('/dashboard', async (req, res) => {
     try {
         // Fetch all keys matching our audit log pattern
@@ -26,7 +26,7 @@ app.get('/dashboard', async (req, res) => {
             logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         }
 
-        // Generate a clean HTML dashboard view
+        // Generate an upgraded HTML dashboard view with client-side filtering & export
         const html = `
         <!DOCTYPE html>
         <html lang="en">
@@ -40,7 +40,14 @@ app.get('/dashboard', async (req, res) => {
                 .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eaeaea; padding-bottom: 20px; margin-bottom: 20px; }
                 h1 { margin: 0; color: #1e293b; font-size: 24px; }
                 .badge { background-color: #10b981; color: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left; }
+                
+                /* Action controls bar */
+                .controls { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; align-items: center; }
+                .search-box { flex-grow: 1; padding: 12px 15px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+                .btn-export { background-color: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; display: inline-block; min-width: 220px; text-align: center; }
+                .btn-export:hover { background-color: #1d4ed8; }
+
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; text-align: left; }
                 th { background-color: #f8fafc; color: #64748b; padding: 12px; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #eaeaea; }
                 td { padding: 14px 12px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
                 tr:hover { background-color: #f8fafc; }
@@ -58,13 +65,19 @@ app.get('/dashboard', async (req, res) => {
                     </div>
                     <span class="badge">SECURE LEDGER ACTIVE</span>
                 </div>
-                <table>
+
+                <div class="controls">
+                    <input type="text" id="searchInput" class="search-box" placeholder="Search logs by product, status, metadata or system version..." onkeyup="filterLogs()">
+                    <button class="btn-export" onclick="exportToCSV()">Download CSV Audit Report</button>
+                </div>
+
+                <table id="auditTable">
                     <thead>
                         <tr>
                             <th>Timestamp</th>
                             <th>Test Name</th>
                             <th>Executed By</th>
-                            <th>Version</th>
+                            <th>Version/Metadata</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -78,10 +91,64 @@ app.get('/dashboard', async (req, res) => {
                                 <td><span class="${log.status === 'PASSED' ? 'status-passed' : 'status-failed'}">${log.status}</span></td>
                             </tr>
                         `).join('')}
-                        ${logs.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:#94a3b8; padding:40px;">No audit logs found in ledger database.</td></tr>' : ''}
+                        ${logs.length === 0 ? '<tr id="noDataRow"><td colspan="5" style="text-align:center; color:#94a3b8; padding:40px;">No audit logs found in ledger database.</td></tr>' : ''}
                     </tbody>
                 </table>
             </div>
+
+            <script>
+                // Live Search Box Filtering Logic
+                function filterLogs() {
+                    const input = document.getElementById("searchInput");
+                    const filter = input.value.toLowerCase();
+                    const table = document.getElementById("auditTable");
+                    const tr = table.getElementsByTagName("tr");
+
+                    for (let i = 1; i < tr.length; i++) {
+                        let rowMatch = false;
+                        const tds = tr[i].getElementsByTagName("td");
+                        
+                        for (let j = 0; j < tds.length; j++) {
+                            if (tds[j]) {
+                                const textValue = tds[j].textContent || tds[j].innerText;
+                                if (textValue.toLowerCase().indexOf(filter) > -1) {
+                                    rowMatch = true;
+                                    break;
+                                }
+                            }
+                        }
+                        tr[i].style.display = rowMatch ? "" : "none";
+                    }
+                }
+
+                // Download Table Content as a Valid CSV Format
+                function exportToCSV() {
+                    const table = document.getElementById("auditTable");
+                    let csv = [];
+                    const rows = table.querySelectorAll("tr");
+                    
+                    for (let i = 0; i < rows.length; i++) {
+                        if (rows[i].style.display === "none") continue;
+                        
+                        const row = [], cols = rows[i].querySelectorAll("td, th");
+                        
+                        for (let j = 0; j < cols.length; j++) {
+                            let data = cols[j].innerText.replace(/\\n/g, '').replace(/,/g, ';').trim();
+                            row.push('"' + data + '"');
+                        }
+                        csv.push(row.join(","));
+                    }
+                    
+                    const csvContent = "data:text/csv;charset=utf-8," + csv.join("\\n");
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", "FDA_21CFR_Part11_Audit_Report_" + new Date().toISOString().slice(0,10) + ".csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+            </script>
         </body>
         </html>
         `;
@@ -95,7 +162,6 @@ app.get('/dashboard', async (req, res) => {
 
 // 2. THE REVENUE ENDPOINT: Clients send validation logs here
 app.post('/api/v1/validation-logs', async (req, res) => {
-    // API Key security for your paying customers
     const apiKey = req.headers['x-api-key'];
     if (!apiKey || apiKey !== 'pilot_client_sec_101') {
         return res.status(401).json({ error: 'Unauthorized: Invalid or missing API Key.' });
@@ -103,15 +169,13 @@ app.post('/api/v1/validation-logs', async (req, res) => {
 
     const { testName, status, executedBy, systemVersion } = req.body;
 
-    // Validate that required FDA data fields are present
     if (!testName || !status || !executedBy || !systemVersion) {
         return res.status(400).json({ 
-            error: 'Bad Request: Missing required 21 CFR Part 11 audit fields (testName, status, executedBy, systemVersion).' 
+            error: 'Bad Request: Missing required 21 CFR Part 11 audit fields.' 
         });
     }
 
     try {
-        // Construct an immutable, timestamped audit log object
         const auditRecord = {
             testName,
             status,
@@ -121,11 +185,9 @@ app.post('/api/v1/validation-logs', async (req, res) => {
             ipAddress: req.ip
         };
 
-        // Generate a unique audit key and save it to the Redis database ledger
         const logId = `audit:log:${Date.now()}:${Math.floor(Math.random() * 1000)}`;
         await redis.set(logId, JSON.stringify(auditRecord));
 
-        // Respond with success
         return res.status(201).json({
             success: true,
             message: 'Audit log securely sealed and archived to 21 CFR Part 11 compliance ledger.',
@@ -134,7 +196,7 @@ app.post('/api/v1/validation-logs', async (req, res) => {
 
     } catch (error) {
         console.error('Ledger Storage Error:', error);
-        return res.status(500).json({ error: 'Internal Server Error: Failed to commit log to safe ledger.' });
+        return res.status(500).json({ error: 'Internal Server Error.' });
     }
 });
 
