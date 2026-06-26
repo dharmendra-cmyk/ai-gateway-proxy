@@ -41,12 +41,12 @@ app.get('/dashboard', async (req, res) => {
                 h1 { margin: 0; color: #1e293b; font-size: 24px; }
                 .badge { background-color: #10b981; color: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
                 
-                /* Action controls bar stacked clearly */
-                .controls { display: flex; flex-direction: row; justify-content: space-between; gap: 20px; margin-bottom: 25px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; align-items: center; }
-                .search-box { flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box; height: 45px; }
+                /* Stacked clearly on top of each other so nothing is hidden */
+                .controls { background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 25px; }
+                .search-box { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box; margin-bottom: 15px; }
                 
-                /* Button fixed color typography */
-                .btn-export { background-color: #2563eb; color: #ffffff !important; border: none; padding: 0 24px; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; min-width: 240px; text-align: center; display: inline-block; height: 45px; line-height: 45px; box-sizing: border-box; text-decoration: none; }
+                /* Large Blue Download Button */
+                .btn-export { background-color: #2563eb; color: #ffffff !important; border: none; padding: 12px 30px; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; text-align: center; display: block; width: 100%; box-sizing: border-box; text-decoration: none; }
                 .btn-export:hover { background-color: #1d4ed8; color: #ffffff !important; }
 
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; text-align: left; }
