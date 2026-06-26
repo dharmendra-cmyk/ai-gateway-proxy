@@ -41,10 +41,10 @@ app.get('/dashboard', async (req, res) => {
                 h1 { margin: 0; color: #1e293b; font-size: 24px; }
                 .badge { background-color: #10b981; color: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
                 
-                /* Action controls bar */
-                .controls { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; align-items: center; }
-                .search-box { flex-grow: 1; padding: 12px 15px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
-                .btn-export { background-color: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; display: inline-block; min-width: 220px; text-align: center; }
+                /* Action controls bar stacked clearly */
+                .controls { display: flex; flex-direction: row; justify-content: space-between; gap: 20px; margin-bottom: 25px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+                .search-box { flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+                .btn-export { background-color: #2563eb; color: white !important; border: none; padding: 12px 24px; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; min-width: 220px; text-align: center; display: block; height: 45px; line-height: 21px; box-sizing: border-box; }
                 .btn-export:hover { background-color: #1d4ed8; }
 
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; text-align: left; }
@@ -97,7 +97,6 @@ app.get('/dashboard', async (req, res) => {
             </div>
 
             <script>
-                // Live Search Box Filtering Logic
                 function filterLogs() {
                     const input = document.getElementById("searchInput");
                     const filter = input.value.toLowerCase();
@@ -121,7 +120,6 @@ app.get('/dashboard', async (req, res) => {
                     }
                 }
 
-                // Download Table Content as a Valid CSV Format
                 function exportToCSV() {
                     const table = document.getElementById("auditTable");
                     let csv = [];
