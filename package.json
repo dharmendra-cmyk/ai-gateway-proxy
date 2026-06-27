@@ -3,6 +3,7 @@
     "@google/genai": "^2.9.0",
     "@supabase/supabase-js": "^2.108.2",
     "bullmq": "^5.79.0",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "redis": "^6.0.0",
