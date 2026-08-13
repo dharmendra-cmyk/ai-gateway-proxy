@@ -31,8 +31,18 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route - Serves valid App Bridge HTML (Passes both Auth & Embedded checks)
+// 1. Root Route - Handles OAuth handshake & App Bridge
 app.get('/', (req, res) => {
+  const { shop, hmac, code, host } = req.query;
+
+  // Handles fresh install/auth initialization from Shopify Test Bot
+  if (shop && !code && !host) {
+    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const storeHandle = cleanShop.replace('.myshopify.com', '');
+    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/oauth/authorize?client_id=${process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39'}&scope=read_products&redirect_uri=https://${req.headers.host}/api/auth/callback`);
+  }
+
+  // Return App Bridge HTML for authenticated / embedded view
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
@@ -50,7 +60,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// 2. OAuth Callback Route - Handles Redirects properly
+// 2. OAuth Callback Route
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
@@ -61,7 +71,7 @@ app.get('/api/auth/callback', (req, res) => {
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhook & Compliance Handler
+// 3. Mandatory Compliance & Webhook Endpoints
 const handleWebhook = (req, res) => {
   const isValid = verifyShopifyHmac(req);
   if (!isValid) {
