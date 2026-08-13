@@ -3,7 +3,6 @@ const crypto = require('crypto');
 
 const app = express();
 
-// Capture raw body for accurate HMAC signature verification
 app.use(express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf;
@@ -32,18 +31,17 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route - Handles Installation & OAuth Initiation
+// 1. Root Route - App Bridge & OAuth Initiation
 app.get('/', (req, res) => {
-  const { shop } = req.query;
+  const { shop, host, embedded } = req.query;
 
+  // If shop parameter is present, redirect to embedded Shopify admin app page
   if (shop) {
-    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
     const apiKey = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
-    const redirectUri = encodeURIComponent(`https://${req.headers.host}/api/auth/callback`);
-    const scopes = 'read_products';
-
-    // Properly structured OAuth authorize URL
-    return res.redirect(302, `https://${cleanShop}/admin/oauth/authorize?client_id=${apiKey}&scope=${scopes}&redirect_uri=${redirectUri}`);
+    
+    // Redirect directly to Shopify Embedded Admin URL for seamless installation check
+    return res.redirect(302, `https://admin.shopify.com/store/${cleanShop}/apps/${apiKey}`);
   }
 
   res.setHeader('Content-Type', 'text/html');
@@ -67,19 +65,18 @@ app.get('/', (req, res) => {
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
-    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    return res.redirect(302, `https://${cleanShop}/admin/apps`);
+    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
+    const apiKey = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
+    return res.redirect(302, `https://admin.shopify.com/store/${cleanShop}/apps/${apiKey}`);
   }
   return res.status(200).send('Authenticated');
 });
 
 // 3. Webhook & Mandatory Compliance Handlers
 const handleWebhook = (req, res) => {
-  // If request contains an invalid HMAC, return 401 as required by Shopify
   if (req.headers['x-shopify-hmac-sha256'] && !verifyShopifyHmac(req)) {
     return res.status(401).send('Unauthorized - Invalid HMAC');
   }
-  // Standard response for compliance/webhook tests
   return res.status(200).send('OK');
 };
 
