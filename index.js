@@ -11,7 +11,7 @@ app.use(express.json({
 
 app.use(express.urlencoded({ extended: true }));
 
-// HMAC Validation Function
+// HMAC Verification
 function verifyShopifyHmac(req) {
   const hmac = req.headers['x-shopify-hmac-sha256'];
   const secret = process.env.SHOPIFY_API_SECRET || 'd4ee15084969bdb6c4d8569bc9ab9b39';
@@ -31,14 +31,18 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route - Redirects to /app/grant during install flow
+// Root Route: Dynamically handle OAuth redirect for ANY test store
 app.get('/', (req, res) => {
   const { shop, code, host } = req.query;
 
   if (shop && !code && !host) {
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
     const storeHandle = cleanShop.replace('.myshopify.com', '');
-    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/app/grant`);
+    const clientId = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
+    const redirectUri = encodeURIComponent(`https://${req.headers.host}/api/auth/callback`);
+    
+    // Redirects to the EXACT store's OAuth authorization page
+    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/oauth/authorize?client_id=${clientId}&scope=read_products&redirect_uri=${redirectUri}`);
   }
 
   res.setHeader('Content-Type', 'text/html');
@@ -58,7 +62,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// 2. OAuth Callback Route
+// OAuth Callback Route
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
@@ -69,7 +73,7 @@ app.get('/api/auth/callback', (req, res) => {
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhook & Compliance Handler
+// Compliance and Webhook Endpoint
 const handleWebhook = (req, res) => {
   const isValid = verifyShopifyHmac(req);
   if (!isValid) {
