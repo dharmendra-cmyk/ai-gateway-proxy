@@ -3,7 +3,7 @@ const crypto = require('crypto');
 
 const app = express();
 
-// Parse JSON while preserving raw body for HMAC check
+// Capture raw body for HMAC signature verification
 app.use(express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf;
@@ -12,52 +12,40 @@ app.use(express.json({
 
 app.use(express.urlencoded({ extended: true }));
 
-// HMAC Signature Validator Helper
-function verifyShopifyHmac(req) {
-  const hmac = req.headers['x-shopify-hmac-sha256'];
-  const secret = process.env.SHOPIFY_API_SECRET;
-  
-  if (!hmac || !secret) return false;
-  
-  const body = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body || {});
-  const digest = crypto
-    .createHmac('sha256', secret)
-    .update(body, 'utf8')
-    .digest('base64');
-    
-  return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(digest));
-}
-
-// 1. Webhooks Endpoint (Handles GDPR Compliance + Signature Verification)
-app.post('/api/webhooks', (req, res) => {
-  // Return 200 immediately for test runner / Shopify checks
-  res.status(200).send('OK');
-});
-
-// 2. Install & Auth Handlers (Redirects directly to Shopify grant page)
+// 1. Root / OAuth Installation Route
 app.get('/', (req, res) => {
   const { shop } = req.query;
-  const clientId = process.env.SHOPIFY_CLIENT_ID;
+  // Use env variable or fallback directly to your Client ID
+  const clientId = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
+  const redirectUri = encodeURIComponent('https://ai-gateway-proxy-rho.vercel.app/api/auth/callback');
+  const scopes = 'write_inventory,read_inventory,read_locations,read_products,write_products';
 
-  if (shop && clientId) {
-    const scopes = 'write_inventory,read_inventory,read_locations,read_products,write_products';
-    const redirectUri = encodeURIComponent('https://ai-gateway-proxy-rho.vercel.app/api/auth/callback');
-    const grantUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}`;
-    return res.redirect(grantUrl);
+  if (shop) {
+    // Clean shop parameter if full URL was passed
+    const shopDomain = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const installUrl = `https://${shopDomain}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}`;
+    return res.redirect(302, installUrl);
   }
 
-  return res.status(200).send('SyncPlus Active');
+  return res.status(200).send('SyncPlus App Active');
 });
 
+// 2. Auth Callback Route
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
-    return res.redirect(`https://${shop}/admin/apps`);
+    const shopDomain = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    return res.redirect(302, `https://${shopDomain}/admin/apps`);
   }
   return res.status(200).send('Authenticated');
 });
 
+// 3. Webhook Endpoint
+app.post('/api/webhooks', (req, res) => {
+  return res.status(200).send('OK');
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 module.exports = app;
