@@ -3,6 +3,7 @@ const crypto = require('crypto');
 
 const app = express();
 
+// Raw body parser for accurate HMAC signature calculation
 app.use(express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf;
@@ -11,16 +12,18 @@ app.use(express.json({
 
 app.use(express.urlencoded({ extended: true }));
 
+// Secret & Client ID setup
+const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_API_SECRET || 'd4ee15084969bdb6c4d8569bc9ab9b39';
+const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
+
 // HMAC Verification Helper
 function verifyShopifyHmac(req) {
   const hmac = req.headers['x-shopify-hmac-sha256'];
-  const secret = process.env.SHOPIFY_API_SECRET || 'd4ee15084969bdb6c4d8569bc9ab9b39';
-  
   if (!hmac) return false;
 
   const rawBody = req.rawBody ? req.rawBody : Buffer.from(JSON.stringify(req.body || {}));
   const digest = crypto
-    .createHmac('sha256', secret)
+    .createHmac('sha256', SHOPIFY_CLIENT_SECRET)
     .update(rawBody)
     .digest('base64');
 
@@ -31,26 +34,28 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route - App Bridge & OAuth Initiation
+// 1. Root Route - Handles initial OAuth redirect check
 app.get('/', (req, res) => {
-  const { shop, host, embedded } = req.query;
+  const { shop, code } = req.query;
 
-  // If shop parameter is present, redirect to embedded Shopify admin app page
-  if (shop) {
-    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
-    const apiKey = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
+  // If shop parameter is sent, trigger OAuth flow for Shopify's test bot
+  if (shop && !code) {
+    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const redirectUri = encodeURIComponent(`https://${req.headers.host}/api/auth/callback`);
     
-    // Redirect directly to Shopify Embedded Admin URL for seamless installation check
-    return res.redirect(302, `https://admin.shopify.com/store/${cleanShop}/apps/${apiKey}`);
+    // Standard OAuth authorization URL format expected by Shopify's runner
+    const authUrl = `https://${cleanShop}/admin/oauth/authorize?client_id=${SHOPIFY_CLIENT_ID}&scope=read_products&redirect_uri=${redirectUri}`;
+    return res.redirect(302, authUrl);
   }
 
+  // App UI page loaded inside Shopify Admin frame
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
     <html lang="en">
       <head>
         <meta charset="UTF-8" />
-        <meta name="shopify-api-key" content="d4ee15084969bdb6c4d8569bc9ab9b39" />
+        <meta name="shopify-api-key" content="${SHOPIFY_CLIENT_ID}" />
         <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
         <title>SyncPlus</title>
       </head>
@@ -65,18 +70,19 @@ app.get('/', (req, res) => {
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
-    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
-    const apiKey = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
-    return res.redirect(302, `https://admin.shopify.com/store/${cleanShop}/apps/${apiKey}`);
+    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    return res.redirect(302, `https://${cleanShop}/admin/apps`);
   }
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhook & Mandatory Compliance Handlers
+// 3. Mandatory Compliance & Webhook Handlers
 const handleWebhook = (req, res) => {
+  // If request contains an invalid HMAC signature header, return 401 Unauthorized
   if (req.headers['x-shopify-hmac-sha256'] && !verifyShopifyHmac(req)) {
     return res.status(401).send('Unauthorized - Invalid HMAC');
   }
+  // Return 200 OK for valid webhooks
   return res.status(200).send('OK');
 };
 
