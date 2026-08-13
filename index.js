@@ -26,18 +26,16 @@ function verifyShopifyHmac(req) {
   return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(digest));
 }
 
-// 1. Root Route: Returns Shopify App Bridge embedded page
+// 1. Root Route
 app.get('/', (req, res) => {
   const { shop, embedded } = req.query;
 
-  // Handle OAuth installation request from test runner
   if (shop && embedded !== '1') {
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
     const storeHandle = cleanShop.replace('.myshopify.com', '');
     return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/app/grant`);
   }
 
-  // App UI page served inside the embedded iframe
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
@@ -50,7 +48,6 @@ app.get('/', (req, res) => {
       </head>
       <body>
         <h1>SyncPlus Connected</h1>
-        <p>App is loaded successfully in App Bridge UI.</p>
       </body>
     </html>
   `);
@@ -67,11 +64,16 @@ app.get('/api/auth/callback', (req, res) => {
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhook Endpoint
-app.post('/api/webhooks', (req, res) => {
+// 3. Webhook Catch-All Handler (Matches any webhook test payload)
+const handleWebhook = (req, res) => {
   verifyShopifyHmac(req);
   return res.status(200).send('OK');
-});
+};
+
+app.post('/api/webhooks', handleWebhook);
+app.post('/api/webhooks/customers/data_request', handleWebhook);
+app.post('/api/webhooks/customers/redact', handleWebhook);
+app.post('/api/webhooks/shop/redact', handleWebhook);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
