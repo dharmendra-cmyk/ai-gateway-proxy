@@ -1,13 +1,14 @@
-application_url = "https://ai-gateway-proxy-rho.vercel.app"
-
-[auth]
-redirect_urls = [
-  "https://ai-gateway-proxy-rho.vercel.app/api/auth/callback"
-]
-
 [webhooks]
-api_version = "2026-07"
+api_version = "2026-04"
 
   [[webhooks.subscriptions]]
-  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
-  uri = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks"
+  topics = [ "customers/data_request" ]
+  uri = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks/customers/data_request"
+
+  [[webhooks.subscriptions]]
+  topics = [ "customers/redact" ]
+  uri = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks/customers/redact"
+
+  [[webhooks.subscriptions]]
+  topics = [ "shop/redact" ]
+  uri = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks/shop/redact"
