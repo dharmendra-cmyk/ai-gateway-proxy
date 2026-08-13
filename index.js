@@ -31,18 +31,17 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// Root Route: Dynamically handle OAuth redirect for ANY test store
+// 1. Root Route: Returns standard Shopify OAuth Authorization Redirect
 app.get('/', (req, res) => {
   const { shop, code, host } = req.query;
 
   if (shop && !code && !host) {
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const storeHandle = cleanShop.replace('.myshopify.com', '');
-    const clientId = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
+    const apiKey = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
     const redirectUri = encodeURIComponent(`https://${req.headers.host}/api/auth/callback`);
     
-    // Redirects to the EXACT store's OAuth authorization page
-    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/oauth/authorize?client_id=${clientId}&scope=read_products&redirect_uri=${redirectUri}`);
+    // Redirect directly to the shop's admin OAuth authorization endpoint
+    return res.redirect(302, `https://${cleanShop}/admin/oauth/authorize?client_id=${apiKey}&scope=read_products&redirect_uri=${redirectUri}`);
   }
 
   res.setHeader('Content-Type', 'text/html');
@@ -62,18 +61,17 @@ app.get('/', (req, res) => {
   `);
 });
 
-// OAuth Callback Route
+// 2. OAuth Callback Route
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const storeHandle = cleanShop.replace('.myshopify.com', '');
-    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/app/grant`);
+    return res.redirect(302, `https://${cleanShop}/admin/apps`);
   }
   return res.status(200).send('Authenticated');
 });
 
-// Compliance and Webhook Endpoint
+// 3. Webhook & Compliance Handler
 const handleWebhook = (req, res) => {
   const isValid = verifyShopifyHmac(req);
   if (!isValid) {
