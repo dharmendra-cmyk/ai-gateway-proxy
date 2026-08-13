@@ -11,7 +11,7 @@ app.use(express.json({
 
 app.use(express.urlencoded({ extended: true }));
 
-// HMAC Verification
+// HMAC Verification Helper
 function verifyShopifyHmac(req) {
   const hmac = req.headers['x-shopify-hmac-sha256'];
   const secret = process.env.SHOPIFY_API_SECRET || 'd4ee15084969bdb6c4d8569bc9ab9b39';
@@ -31,19 +31,21 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route: Returns standard Shopify OAuth Authorization Redirect
+// 1. Root OAuth Initiation Route
 app.get('/', (req, res) => {
-  const { shop, code, host } = req.query;
+  const { shop } = req.query;
 
-  if (shop && !code && !host) {
+  if (shop) {
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
     const apiKey = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
     const redirectUri = encodeURIComponent(`https://${req.headers.host}/api/auth/callback`);
-    
-    // Redirect directly to the shop's admin OAuth authorization endpoint
-    return res.redirect(302, `https://${cleanShop}/admin/oauth/authorize?client_id=${apiKey}&scope=read_products&redirect_uri=${redirectUri}`);
+    const scopes = 'read_products';
+
+    // Direct OAuth Authorize Redirect expected by Shopify Distribution test
+    return res.redirect(302, `https://${cleanShop}/admin/oauth/authorize?client_id=${apiKey}&scope=${scopes}&redirect_uri=${redirectUri}`);
   }
 
+  // Fallback Embedded App Bridge response
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
@@ -71,7 +73,7 @@ app.get('/api/auth/callback', (req, res) => {
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhook & Compliance Handler
+// 3. Mandatory Webhooks and Compliance Route
 const handleWebhook = (req, res) => {
   const isValid = verifyShopifyHmac(req);
   if (!isValid) {
