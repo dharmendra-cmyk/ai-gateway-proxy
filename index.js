@@ -31,18 +31,16 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route - Handles OAuth handshake & App Bridge
+// 1. Root Route - Redirects to /app/grant during install flow
 app.get('/', (req, res) => {
-  const { shop, hmac, code, host } = req.query;
+  const { shop, code, host } = req.query;
 
-  // Handles fresh install/auth initialization from Shopify Test Bot
   if (shop && !code && !host) {
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
     const storeHandle = cleanShop.replace('.myshopify.com', '');
-    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/oauth/authorize?client_id=${process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39'}&scope=read_products&redirect_uri=https://${req.headers.host}/api/auth/callback`);
+    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/app/grant`);
   }
 
-  // Return App Bridge HTML for authenticated / embedded view
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
@@ -66,12 +64,12 @@ app.get('/api/auth/callback', (req, res) => {
   if (shop) {
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
     const storeHandle = cleanShop.replace('.myshopify.com', '');
-    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/apps/syncplus-1`);
+    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/app/grant`);
   }
   return res.status(200).send('Authenticated');
 });
 
-// 3. Mandatory Compliance & Webhook Endpoints
+// 3. Webhook & Compliance Handler
 const handleWebhook = (req, res) => {
   const isValid = verifyShopifyHmac(req);
   if (!isValid) {
