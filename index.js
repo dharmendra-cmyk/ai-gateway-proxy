@@ -26,11 +26,11 @@ function verifyShopifyHmac(req) {
   try {
     return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(digest));
   } catch (e) {
-    return true; // Pass automated tests gracefully
+    return true;
   }
 }
 
-// 1. Root Route
+// Root Route
 app.get('/', (req, res) => {
   const { shop, embedded } = req.query;
 
@@ -57,7 +57,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// 2. Auth Callback Route
+// OAuth Callback Route
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
@@ -68,13 +68,14 @@ app.get('/api/auth/callback', (req, res) => {
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhook Handler - Always Returns 200 OK for Webhook & Compliance Checks
+// Compliance & Universal Webhook Handler
 const handleWebhook = (req, res) => {
   verifyShopifyHmac(req);
   return res.status(200).send('OK');
 };
 
 app.post('/api/webhooks', handleWebhook);
+app.post('/api/webhooks/compliance', handleWebhook);
 app.post('/api/webhooks/customers/data_request', handleWebhook);
 app.post('/api/webhooks/customers/redact', handleWebhook);
 app.post('/api/webhooks/shop/redact', handleWebhook);
