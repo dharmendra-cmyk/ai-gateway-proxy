@@ -1,3 +1,13 @@
+name = "SyncPlus"
+client_id = "d4ee15084969bdb6c4d8569bc9ab9b39"
+application_url = "https://ai-gateway-proxy-rho.vercel.app"
+embedded = true
+
+[auth]
+redirect_urls = [
+  "https://ai-gateway-proxy-rho.vercel.app/api/auth/callback"
+]
+
 [webhooks]
 api_version = "2026-07"
 
