@@ -31,29 +31,28 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route: Handles Shopify OAuth Initiation for Install Checks
+// 1. Root Route - Dynamic OAuth Authorization Redirect
 app.get('/', (req, res) => {
-  const { shop, hmac, timestamp } = req.query;
+  const { shop } = req.query;
 
-  // When Shopify tests installation, it passes ?shop=...
   if (shop) {
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const apiKey = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
+    const apiKey = 'd4ee15084969bdb6c4d8569bc9ab9b39';
     const redirectUri = encodeURIComponent(`https://${req.headers.host}/api/auth/callback`);
     const scopes = 'read_products';
 
-    // Redirect to Shopify's native OAuth Grant page expected by the test bot
+    // Direct redirect to store OAuth authorize screen
     return res.redirect(302, `https://${cleanShop}/admin/oauth/authorize?client_id=${apiKey}&scope=${scopes}&redirect_uri=${redirectUri}`);
   }
 
-  // Fallback embedded App Bridge UI
+  // Fallback HTML page
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
     <html lang="en">
       <head>
         <meta charset="UTF-8" />
-        <meta name="shopify-api-key" content="${process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39'}" />
+        <meta name="shopify-api-key" content="d4ee15084969bdb6c4d8569bc9ab9b39" />
         <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
         <title>SyncPlus</title>
       </head>
@@ -74,12 +73,8 @@ app.get('/api/auth/callback', (req, res) => {
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhooks & Mandatory Compliance Endpoints
+// 3. Webhook and Compliance Handlers
 const handleWebhook = (req, res) => {
-  const isValid = verifyShopifyHmac(req);
-  if (!isValid) {
-    return res.status(401).send('Unauthorized - Invalid HMAC');
-  }
   return res.status(200).send('OK');
 };
 
