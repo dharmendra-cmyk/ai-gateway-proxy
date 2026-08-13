@@ -14,16 +14,14 @@ app.use(express.urlencoded({ extended: true }));
 // HMAC Validation
 function verifyShopifyHmac(req) {
   const hmac = req.headers['x-shopify-hmac-sha256'];
-  const secret = process.env.SHOPIFY_API_SECRET;
+  const secret = process.env.SHOPIFY_API_SECRET || 'd4ee15084969bdb6c4d8569bc9ab9b39';
   
   if (!hmac) return false;
 
-  // Use secret from env or fallback to client secret for HMAC validation
-  const apiSecret = secret || 'd4ee15084969bdb6c4d8569bc9ab9b39';
   const body = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body || {});
   
   const digest = crypto
-    .createHmac('sha256', apiSecret)
+    .createHmac('sha256', secret)
     .update(body, 'utf8')
     .digest('base64');
 
@@ -34,16 +32,18 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route
+// Root Route: Always redirect or serve valid App Bridge
 app.get('/', (req, res) => {
-  const { shop, embedded } = req.query;
+  const { shop, host } = req.query;
 
-  if (shop && embedded !== '1') {
+  // Handles Shopify Test Bot & Unembedded Requests via 302 Redirect
+  if (shop && !host) {
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
     const storeHandle = cleanShop.replace('.myshopify.com', '');
-    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/app/grant`);
+    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/apps/syncplus-1`);
   }
 
+  // Handles Embedded App Bridge Requests
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
@@ -55,13 +55,13 @@ app.get('/', (req, res) => {
         <title>SyncPlus</title>
       </head>
       <body>
-        <h1>SyncPlus Connected</h1>
+        <h1>SyncPlus Active</h1>
       </body>
     </html>
   `);
 });
 
-// 2. OAuth Callback Route
+// OAuth Callback Route
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
@@ -69,10 +69,10 @@ app.get('/api/auth/callback', (req, res) => {
     const storeHandle = cleanShop.replace('.myshopify.com', '');
     return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/apps/syncplus-1`);
   }
-  return res.status(200).send('Authenticated');
+  return res.redirect(302, 'https://admin.shopify.com');
 });
 
-// 3. Webhook Handler - Strictly Returns 401 on Invalid HMAC per Shopify Specs
+// Webhook & Compliance Handler
 const handleWebhook = (req, res) => {
   const isValid = verifyShopifyHmac(req);
   if (!isValid) {
