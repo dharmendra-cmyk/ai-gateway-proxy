@@ -11,7 +11,6 @@ app.use(express.json({
 
 app.use(express.urlencoded({ extended: true }));
 
-// HMAC Validation
 function verifyShopifyHmac(req) {
   const hmac = req.headers['x-shopify-hmac-sha256'];
   const secret = process.env.SHOPIFY_API_SECRET;
@@ -26,7 +25,6 @@ function verifyShopifyHmac(req) {
   return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(digest));
 }
 
-// 1. Root Route
 app.get('/', (req, res) => {
   const { shop, embedded } = req.query;
 
@@ -53,7 +51,6 @@ app.get('/', (req, res) => {
   `);
 });
 
-// 2. Auth Callback Route
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
@@ -64,7 +61,6 @@ app.get('/api/auth/callback', (req, res) => {
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhook Catch-All Handler (Matches any webhook test payload)
 const handleWebhook = (req, res) => {
   verifyShopifyHmac(req);
   return res.status(200).send('OK');
