@@ -1,26 +1,10 @@
-client_id = "d4ee15084969bdb6c4d8569bc9ab9b39"
-name = "SyncPlus"
-handle = "syncplus-1"
-application_url = "https://ai-gateway-proxy-rho.vercel.app/"
-embedded = true
-
-[build]
-automatically_update_urls_on_dev = true
-dev_store_url = "uvszh1-m5.myshopify.com"
-
-[access_scopes]
-scopes = "read_products"
-
-[auth]
-redirect_urls = [
-  "https://ai-gateway-proxy-rho.vercel.app/",
-  "https://ai-gateway-proxy-rho.vercel.app/api/auth/callback"
-]
-
 [webhooks]
 api_version = "2026-07"
 
-[webhooks.privacy_compliance]
-customer_data_request_url = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks/compliance"
-customer_redact_url = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks/compliance"
-shop_redact_url = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks/compliance"
+  [[webhooks.subscriptions]]
+  compliance_topics = [
+    "customers/data_request",
+    "customers/redact",
+    "shop/redact"
+  ]
+  uri = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks/compliance"
