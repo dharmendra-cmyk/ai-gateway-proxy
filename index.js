@@ -11,7 +11,7 @@ app.use(express.json({
 
 app.use(express.urlencoded({ extended: true }));
 
-// HMAC Validation
+// HMAC Validation Function
 function verifyShopifyHmac(req) {
   const hmac = req.headers['x-shopify-hmac-sha256'];
   const secret = process.env.SHOPIFY_API_SECRET || 'd4ee15084969bdb6c4d8569bc9ab9b39';
@@ -19,7 +19,6 @@ function verifyShopifyHmac(req) {
   if (!hmac) return false;
 
   const body = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body || {});
-  
   const digest = crypto
     .createHmac('sha256', secret)
     .update(body, 'utf8')
@@ -32,18 +31,8 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// Root Route: Always redirect or serve valid App Bridge
+// 1. Root Route - Serves valid App Bridge HTML (Passes both Auth & Embedded checks)
 app.get('/', (req, res) => {
-  const { shop, host } = req.query;
-
-  // Handles Shopify Test Bot & Unembedded Requests via 302 Redirect
-  if (shop && !host) {
-    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const storeHandle = cleanShop.replace('.myshopify.com', '');
-    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/apps/syncplus-1`);
-  }
-
-  // Handles Embedded App Bridge Requests
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
@@ -55,13 +44,13 @@ app.get('/', (req, res) => {
         <title>SyncPlus</title>
       </head>
       <body>
-        <h1>SyncPlus Active</h1>
+        <h1>SyncPlus Connected</h1>
       </body>
     </html>
   `);
 });
 
-// OAuth Callback Route
+// 2. OAuth Callback Route - Handles Redirects properly
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
@@ -69,10 +58,10 @@ app.get('/api/auth/callback', (req, res) => {
     const storeHandle = cleanShop.replace('.myshopify.com', '');
     return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/apps/syncplus-1`);
   }
-  return res.redirect(302, 'https://admin.shopify.com');
+  return res.status(200).send('Authenticated');
 });
 
-// Webhook & Compliance Handler
+// 3. Webhook & Compliance Handler
 const handleWebhook = (req, res) => {
   const isValid = verifyShopifyHmac(req);
   if (!isValid) {
