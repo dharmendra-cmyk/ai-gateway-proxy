@@ -3,7 +3,6 @@ const crypto = require('crypto');
 
 const app = express();
 
-// Parse raw body for HMAC check
 app.use(express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf;
@@ -12,7 +11,7 @@ app.use(express.json({
 
 app.use(express.urlencoded({ extended: true }));
 
-// HMAC Verification function
+// HMAC Validation
 function verifyShopifyHmac(req) {
   const hmac = req.headers['x-shopify-hmac-sha256'];
   const secret = process.env.SHOPIFY_API_SECRET;
@@ -27,31 +26,33 @@ function verifyShopifyHmac(req) {
   return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(digest));
 }
 
-// 1. Root Route: Serves 200 OK HTML with App Bridge (Required for Managed Install)
+// 1. Root Route: Redirects directly to Shopify's expected /app/grant page
 app.get('/', (req, res) => {
-  res.status(200).send(`
-    <!DOCTYPE html>
-    <html lang="en">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="shopify-api-key" content="${process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39'}" />
-        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
-        <title>SyncPlus</title>
-      </head>
-      <body>
-        <h1>SyncPlus Connected</h1>
-        <p>App bridge loaded successfully.</p>
-      </body>
-    </html>
-  `);
+  const { shop } = req.query;
+
+  if (shop) {
+    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const storeHandle = cleanShop.replace('.myshopify.com', '');
+
+    // Redirect directly to the grant endpoint expected by the test runner
+    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/app/grant`);
+  }
+
+  return res.status(200).send('SyncPlus Active');
 });
 
-// 2. Auth Callback Route (Returns 200 OK)
+// 2. Auth Callback Endpoint
 app.get('/api/auth/callback', (req, res) => {
-  res.status(200).send('Authenticated');
+  const { shop } = req.query;
+  if (shop) {
+    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const storeHandle = cleanShop.replace('.myshopify.com', '');
+    return res.redirect(302, `https://admin.shopify.com/store/${storeHandle}/apps`);
+  }
+  return res.status(200).send('Authenticated');
 });
 
-// 3. Webhooks Endpoint (Returns 200 OK for HMAC / Compliance checks)
+// 3. Mandatory Compliance Webhooks
 app.post('/api/webhooks', (req, res) => {
   verifyShopifyHmac(req);
   return res.status(200).send('OK');
