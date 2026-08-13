@@ -3,7 +3,7 @@ const crypto = require('crypto');
 
 const app = express();
 
-// Raw body parser for Shopify HMAC verification
+// Parse JSON while preserving raw body for HMAC check
 app.use(express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf;
@@ -12,7 +12,7 @@ app.use(express.json({
 
 app.use(express.urlencoded({ extended: true }));
 
-// HMAC Validation for Webhooks
+// HMAC Verification function
 function verifyShopifyHmac(req) {
   const hmac = req.headers['x-shopify-hmac-sha256'];
   const secret = process.env.SHOPIFY_API_SECRET;
@@ -27,38 +27,23 @@ function verifyShopifyHmac(req) {
   return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(digest));
 }
 
-// 1. Root Route: Handles Shopify OAuth Install Redirect
+// 1. Root Route: OAuth Redirect with Scopes Included
 app.get('/', (req, res) => {
   const { shop } = req.query;
   const clientId = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
   const redirectUri = encodeURIComponent('https://ai-gateway-proxy-rho.vercel.app/api/auth/callback');
+  const scopes = 'write_inventory,read_inventory,read_locations,read_products,write_products';
 
   if (shop) {
-    // Extract clean shop handle (e.g. 'uvszh1-m5' from 'uvszh1-m5.myshopify.com')
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const shopHandle = cleanShop.replace('.myshopify.com', '');
-
-    // Redirect to Modern Shopify Admin Grant Page
-    const installUrl = `https://admin.shopify.com/store/${shopHandle}/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}`;
+    const installUrl = `https://${cleanShop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}`;
     return res.redirect(302, installUrl);
   }
 
-  // Fallback UI response
-  return res.status(200).send(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>SyncPlus</title>
-        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
-      </head>
-      <body>
-        <h2>SyncPlus Active</h2>
-      </body>
-    </html>
-  `);
+  return res.status(200).send('SyncPlus Active');
 });
 
-// 2. OAuth Callback Endpoint
+// 2. Auth Callback Endpoint
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
@@ -68,7 +53,7 @@ app.get('/api/auth/callback', (req, res) => {
   return res.status(200).send('Authenticated');
 });
 
-// 3. Mandatory Compliance Webhooks Endpoint
+// 3. Webhook Endpoint
 app.post('/api/webhooks', (req, res) => {
   verifyShopifyHmac(req);
   return res.status(200).send('OK');
