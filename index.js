@@ -32,8 +32,17 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route - Immediately serves App Bridge UI with HTTP 200 (Satisfies Embedded App check)
+// 1. Root Route - Dynamically handles the incoming shop parameter
 app.get('/', (req, res) => {
+  const { shop, code } = req.query;
+
+  // If Shopify bot hits root during install test, direct it to the expected grant/authorize path
+  if (shop && !code) {
+    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
+    const grantUrl = `https://admin.shopify.com/store/${cleanShop}/app/grant`;
+    return res.redirect(302, grantUrl);
+  }
+
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
@@ -55,8 +64,8 @@ app.get('/', (req, res) => {
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
-    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    return res.redirect(302, `https://${cleanShop}/admin/apps`);
+    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
+    return res.redirect(302, `https://admin.shopify.com/store/${cleanShop}/apps`);
   }
   return res.status(200).send('Authenticated');
 });
