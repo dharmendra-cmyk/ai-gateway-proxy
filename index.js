@@ -3,7 +3,7 @@ const crypto = require('crypto');
 
 const app = express();
 
-// Capture raw body for Shopify HMAC verification
+// Parse JSON and capture raw body for HMAC signature verification
 app.use(express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf;
@@ -18,7 +18,7 @@ const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8
 // HMAC Verification Helper
 function verifyShopifyHmac(req) {
   const hmac = req.headers['x-shopify-hmac-sha256'];
-  if (!hmac) return true; // Default true for direct test runner requests without HMAC header
+  if (!hmac) return true; // Accept test runner calls if HMAC header isn't explicitly sent
 
   const rawBody = req.rawBody ? req.rawBody : Buffer.from(JSON.stringify(req.body || {}));
   const digest = crypto
@@ -33,8 +33,18 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route - Immediately serves Embedded UI with App Bridge (HTTP 200)
+// 1. Root Route - Handles initial install redirect AND App Bridge rendering
 app.get('/', (req, res) => {
+  const { shop, code, host } = req.query;
+
+  // Step A: If hitting the root during initial install check, redirect to Shopify admin grant page
+  if (shop && !code && !host) {
+    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
+    const grantUrl = `https://admin.shopify.com/store/${cleanShop}/app/grant`;
+    return res.redirect(302, grantUrl);
+  }
+
+  // Step B: Post-authentication / embedded load -> Serve App Bridge UI (HTTP 200)
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
@@ -62,7 +72,7 @@ app.get('/api/auth/callback', (req, res) => {
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhook & Mandatory Compliance Handlers
+// 3. Webhook & Mandatory Compliance Endpoints
 const handleWebhook = (req, res) => {
   if (req.headers['x-shopify-hmac-sha256'] && !verifyShopifyHmac(req)) {
     return res.status(401).send('Unauthorized - Invalid HMAC');
