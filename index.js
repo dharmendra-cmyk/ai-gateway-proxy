@@ -32,21 +32,19 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route - OAuth Initiation
+// 1. Root Route - Handles initial OAuth check from Shopify bot
 app.get('/', (req, res) => {
   const { shop, code } = req.query;
 
   if (shop && !code) {
     const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const redirectUri = `https://${req.headers.host}/api/auth/callback`;
-
-    const params = new URLSearchParams({
-      client_id: SHOPIFY_CLIENT_ID,
-      scope: 'read_products',
-      redirect_uri: redirectUri
-    });
-
-    return res.redirect(302, `https://${cleanShop}/admin/oauth/authorize?${params.toString()}`);
+    const redirectUri = encodeURIComponent(`https://${req.headers.host}/api/auth/callback`);
+    const scopes = encodeURIComponent('read_products');
+    
+    // Direct formatted OAuth URL for Shopify test runner
+    const authUrl = `https://${cleanShop}/admin/oauth/authorize?client_id=${SHOPIFY_CLIENT_ID}&scope=${scopes}&redirect_uri=${redirectUri}`;
+    
+    return res.redirect(302, authUrl);
   }
 
   res.setHeader('Content-Type', 'text/html');
