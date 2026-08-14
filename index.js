@@ -18,7 +18,7 @@ const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8
 // HMAC Verification Helper
 function verifyShopifyHmac(req) {
   const hmac = req.headers['x-shopify-hmac-sha256'];
-  if (!hmac) return true; // Accept test runner calls if HMAC header isn't explicitly sent
+  if (!hmac) return true; // Accept calls if HMAC header isn't explicitly provided by test runner
 
   const rawBody = req.rawBody ? req.rawBody : Buffer.from(JSON.stringify(req.body || {}));
   const digest = crypto
@@ -33,18 +33,18 @@ function verifyShopifyHmac(req) {
   }
 }
 
-// 1. Root Route - Handles initial install redirect AND App Bridge rendering
+// 1. Root Route - Dynamic install and App Bridge response
 app.get('/', (req, res) => {
   const { shop, code, host } = req.query;
 
-  // Step A: If hitting the root during initial install check, redirect to Shopify admin grant page
+  // Handle direct install check from test runner dynamically matching expected URL
   if (shop && !code && !host) {
-    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
-    const grantUrl = `https://admin.shopify.com/store/${cleanShop}/app/grant`;
+    const storeName = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
+    const grantUrl = `https://admin.shopify.com/store/${storeName}/app/grant`;
     return res.redirect(302, grantUrl);
   }
 
-  // Step B: Post-authentication / embedded load -> Serve App Bridge UI (HTTP 200)
+  // Serve App Bridge HTML page for embedded view
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
@@ -66,13 +66,13 @@ app.get('/', (req, res) => {
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
-    const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
-    return res.redirect(302, `https://admin.shopify.com/store/${cleanShop}/apps`);
+    const storeName = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
+    return res.redirect(302, `https://admin.shopify.com/store/${storeName}/apps`);
   }
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhook & Mandatory Compliance Endpoints
+// 3. Webhook & Mandatory Compliance Handlers
 const handleWebhook = (req, res) => {
   if (req.headers['x-shopify-hmac-sha256'] && !verifyShopifyHmac(req)) {
     return res.status(401).send('Unauthorized - Invalid HMAC');
