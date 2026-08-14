@@ -1,27 +1,6 @@
-name = "SyncPlus"
-client_id = "d4ee15084969bdb6c4d8569bc9ab9b39"
-application_url = "https://ai-gateway-proxy-rho.vercel.app"
-embedded = true
-
-[auth]
-redirect_urls = [
-  "https://ai-gateway-proxy-rho.vercel.app/api/auth/callback"
-]
-
-[access_scopes]
-scopes = "read_products"
-
 [webhooks]
-api_version = "2026-07"
+api_version = "2024-04"
 
-  [[webhooks.subscriptions]]
-  topics = [ "customers/data_request" ]
-  uri = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks/customers/data_request"
-
-  [[webhooks.subscriptions]]
-  topics = [ "customers/redact" ]
-  uri = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks/customers/redact"
-
-  [[webhooks.subscriptions]]
-  topics = [ "shop/redact" ]
-  uri = "https://ai-gateway-proxy-rho.vercel.app/api/webhooks/shop/redact"
+[[webhooks.subscriptions]]
+compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+uri = "https://your-app-domain.com/api/webhooks"
