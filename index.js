@@ -3,7 +3,7 @@ const crypto = require('crypto');
 
 const app = express();
 
-// Parse JSON and capture raw body for HMAC signature verification
+// Parse raw body for accurate HMAC verification
 app.use(express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf;
@@ -15,36 +15,34 @@ app.use(express.urlencoded({ extended: true }));
 const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_API_SECRET || 'd4ee15084969bdb6c4d8569bc9ab9b39';
 const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID || 'd4ee15084969bdb6c4d8569bc9ab9b39';
 
-// HMAC Verification Helper
+// Webhook HMAC Verification Middleware
 function verifyShopifyHmac(req) {
-  const hmac = req.headers['x-shopify-hmac-sha256'];
-  if (!hmac) return true; // Accept calls if HMAC header isn't explicitly provided by test runner
+  const hmacHeader = req.headers['x-shopify-hmac-sha256'];
+  if (!hmacHeader) return false;
 
   const rawBody = req.rawBody ? req.rawBody : Buffer.from(JSON.stringify(req.body || {}));
-  const digest = crypto
+  const calculatedDigest = crypto
     .createHmac('sha256', SHOPIFY_CLIENT_SECRET)
     .update(rawBody)
     .digest('base64');
 
   try {
-    return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(digest));
-  } catch (e) {
+    return crypto.timingSafeEqual(Buffer.from(hmacHeader), Buffer.from(calculatedDigest));
+  } catch (err) {
     return false;
   }
 }
 
-// 1. Root Route - Dynamic install and App Bridge response
+// 1. Root Route
 app.get('/', (req, res) => {
   const { shop, code, host } = req.query;
 
-  // Handle direct install check from test runner dynamically matching expected URL
   if (shop && !code && !host) {
     const storeName = shop.replace(/^https?:\/\//, '').replace(/\/$/, '').split('.')[0];
     const grantUrl = `https://admin.shopify.com/store/${storeName}/app/grant`;
     return res.redirect(302, grantUrl);
   }
 
-  // Serve App Bridge HTML page for embedded view
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(`
     <!DOCTYPE html>
@@ -62,7 +60,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// 2. OAuth Callback Endpoint
+// 2. Auth Callback Route
 app.get('/api/auth/callback', (req, res) => {
   const { shop } = req.query;
   if (shop) {
@@ -72,19 +70,18 @@ app.get('/api/auth/callback', (req, res) => {
   return res.status(200).send('Authenticated');
 });
 
-// 3. Webhook & Mandatory Compliance Handlers
+// 3. Webhook Handler with Strict HMAC Validation
 const handleWebhook = (req, res) => {
-  if (req.headers['x-shopify-hmac-sha256'] && !verifyShopifyHmac(req)) {
-    return res.status(401).send('Unauthorized - Invalid HMAC');
+  if (!verifyShopifyHmac(req)) {
+    return res.status(401).send('Unauthorized: Invalid HMAC signature');
   }
   return res.status(200).send('OK');
 };
 
-app.post('/api/webhooks', handleWebhook);
-app.post('/api/webhooks/compliance', handleWebhook);
 app.post('/api/webhooks/customers/data_request', handleWebhook);
 app.post('/api/webhooks/customers/redact', handleWebhook);
 app.post('/api/webhooks/shop/redact', handleWebhook);
+app.all('/api/webhooks*', handleWebhook);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
