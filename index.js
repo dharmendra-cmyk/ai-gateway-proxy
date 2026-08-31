@@ -1,7 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 
-const stripe = require('stripe')('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');
+const stripe = require('stripe')('sk_test_51U5tMuH2Y5HUdNhvwxZq6rLZHSCu3sAK7ovvgwAxpcDp08ktSMgqKSgitrrk0WhnwSq7iELu66CZgMoMk93Y15u00os0IHPKT');
 
 const app = express();
 const port = process.env.PORT || 8080;
